@@ -16,7 +16,7 @@ func TestFormatCode(t *testing.T) {
 
 	token := os.Getenv("API_KEY")
 
-	fmtd, upds, err := FormatCode(lg, "go", "deepseek/deepseek-chat:free", token)
+	fmtd, upds, err := FormatCode(lg, "go", "deepseek/deepseek-chat:free", token, nil)
 
 	if err != nil {
 		t.Error(err)

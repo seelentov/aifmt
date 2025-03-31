@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"aifmt/internal/entity"
 	"aifmt/internal/service"
 	"fmt"
 	"os"
@@ -23,7 +24,10 @@ var FmtCmd = &cobra.Command{
   aifmt fmt -l python --model claude-2 *.py
   
   # Форматирование с автоопределением языка
-  aifmt fmt script.js`,
+  aifmt fmt script.js
+  
+  # Форматирование с учетом контекста других файлов
+  aifmt fmt -w -l go *.go`,
 	Run: func(cmd *cobra.Command, args []string) {
 		token := viper.GetString("api_key")
 		if token == "" {
@@ -38,6 +42,7 @@ var FmtCmd = &cobra.Command{
 		}
 
 		model, _ := cmd.Flags().GetString("model")
+		withCtx, _ := cmd.Flags().GetBool("with-context")
 
 		if len(args) == 0 {
 			fmt.Println("Ошибка: не указаны файлы для обработки")
@@ -45,6 +50,32 @@ var FmtCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Собираем контекстные файлы если указан флаг
+		var ctx []*entity.File
+		if withCtx {
+			for _, pattern := range args {
+				files, err := filepath.Glob(pattern)
+				if err != nil {
+					fmt.Printf("Ошибка при разборе шаблона %s: %v\n", pattern, err)
+					continue
+				}
+
+				for _, file := range files {
+					content, err := os.ReadFile(file)
+					if err != nil {
+						fmt.Printf("Ошибка чтения контекстного файла %s: %v\n", file, err)
+						continue
+					}
+					ctx = append(ctx, &entity.File{
+						Content: string(content),
+						Path:    file,
+					})
+				}
+			}
+			fmt.Printf("Загружено %d файлов для контекста\n", len(ctx))
+		}
+
+		// Обрабатываем каждый файл
 		for _, pattern := range args {
 			files, err := filepath.Glob(pattern)
 			if err != nil {
@@ -53,7 +84,8 @@ var FmtCmd = &cobra.Command{
 			}
 
 			for _, file := range files {
-				fmt.Printf("Обработка %s (Язык: %s, Модель: %s)...\n", file, language, model)
+				fmt.Printf("Обработка %s (Язык: %s, Модель: %s, Контекст: %v)...\n",
+					file, language, model, withCtx)
 
 				content, err := os.ReadFile(file)
 				if err != nil {
@@ -61,7 +93,7 @@ var FmtCmd = &cobra.Command{
 					continue
 				}
 
-				u, upds, err := service.FormatCode(string(content), language, model, token)
+				u, upds, err := service.FormatCode(string(content), language, model, token, ctx)
 				if err != nil {
 					fmt.Printf("Ошибка при форматировании %s: %v\n", file, err)
 					continue
@@ -71,10 +103,12 @@ var FmtCmd = &cobra.Command{
 					continue
 				}
 
+				// Выводим предложенные изменения
 				for _, upd := range upds {
 					fmt.Printf("```%s\n%s\n```\n%s\n\n", language, upd.Code, upd.Description)
 				}
 
+				// Записываем изменения в файл
 				if err := os.WriteFile(file, []byte(u), 0644); err != nil {
 					fmt.Printf("Ошибка записи в %s: %v\n", file, err)
 					continue
@@ -89,4 +123,5 @@ var FmtCmd = &cobra.Command{
 func init() {
 	FmtCmd.Flags().StringP("language", "l", "", "Язык программирования файлов")
 	FmtCmd.Flags().StringP("model", "m", "deepseek/deepseek-chat:free", "Модель ИИ для форматирования")
+	FmtCmd.Flags().BoolP("with-context", "w", false, "Использовать контекст других файлов при форматировании")
 }
