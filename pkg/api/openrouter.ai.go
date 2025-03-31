@@ -1,7 +1,6 @@
 package api
 
 import (
-	"aifmt/internal/entity"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+
+	"github.com/seelentov/aifmt/internal/entity"
 )
 
 type response struct {

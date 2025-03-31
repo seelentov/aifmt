@@ -1,4 +1,4 @@
-module aifmt
+module github.com/seelentov/aifmt
 
 go 1.24.1
 

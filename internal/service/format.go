@@ -1,9 +1,10 @@
 package service
 
 import (
-	"aifmt/internal/entity"
-	"aifmt/pkg/api"
 	"fmt"
+
+	"github.com/seelentov/aifmt/internal/entity"
+	"github.com/seelentov/aifmt/pkg/api"
 )
 
 type AIFormatCodeRequest struct {

@@ -1,10 +1,11 @@
 package main
 
 import (
-	"aifmt/cmd"
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/seelentov/aifmt/cmd"
 
 	"github.com/spf13/cobra"
 )

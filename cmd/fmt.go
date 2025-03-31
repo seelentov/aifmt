@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	"aifmt/internal/entity"
-	"aifmt/internal/service"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/seelentov/aifmt/internal/entity"
+	"github.com/seelentov/aifmt/internal/service"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
