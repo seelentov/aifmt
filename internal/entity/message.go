@@ -1,6 +1,7 @@
 package entity
 
+// Message представляет структуру сообщения, используемого в диалоге с ИИ.
 type Message struct {
-	Text   string `gorm:"not null" json:"text"`
-	IsUser bool   `gorm:"not null" json:"is_user"`
+	Text   string `json:"text"`   // Текст сообщения
+	IsUser bool   `json:"is_user"` // Флаг, указывающий, является ли сообщение пользовательским
 }

@@ -1,32 +1,29 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/seelentov/aifmt/cmd"
-
 	"github.com/spf13/cobra"
-)
-
-var (
-	ErrRootCommand = errors.New("root command execution error")
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "aifmt",
 	Short: "Инструмент для форматирования кода с помощью ИИ",
-	Long: `AIFMT - это инструмент командной строки, использующий ИИ для форматирования и улучшения вашего кода.
-Поддерживает множество языков программирования и моделей ИИ.`,
+	Long:  `AIFMT - это инструмент командной строки, использующий ИИ для форматирования и улучшения вашего кода.\nПоддерживает множество языков программирования и моделей ИИ.`,
 }
 
 func main() {
-	rootCmd.AddCommand(cmd.FmtCmd)
-	rootCmd.AddCommand(cmd.SetCmd)
+	// Инициализация конфигурации перед выполнением команд
+	cmd.InitConfig()
 
+	// Добавление команд в корневую команду
+	rootCmd.AddCommand(cmd.FmtCmd, cmd.SetCmd)
+
+	// Выполнение корневой команды
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Ошибка выполнения команды: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Ошибка выполнения команды:", err)
 		os.Exit(1)
 	}
 }

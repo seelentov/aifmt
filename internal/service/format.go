@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/seelentov/aifmt/internal/entity"
 	"github.com/seelentov/aifmt/pkg/api"
@@ -12,9 +13,16 @@ type AIFormatCodeRequest struct {
 	Updates []*entity.Update `json:"updates"`
 }
 
-func FormatCode(content, language, model, token string, ctx []*entity.File) (string, []*entity.Update, error) {
-	format := "Исправь этот код: ```%s\n%s\n```. Устрани ошибки, прокомментируй его, проведи оптимизацию. Комментарии должны быть на русском языке. Ответ должен быть в формате json: {code:(новый код), updates:(массив изменений)[{code:(часть кода, которую ты решил изменить), description:(причина изменения)}]}."
-	p := fmt.Sprintf(string(format), language, content)
+func FormatCode(content, language, model, token string, comment bool, commentsLanguage string, ctx []*entity.File) (string, []*entity.Update, error) {
+	format := strings.Builder{}
+	format.WriteString("Исправь этот код: ```%s\n%s\n```. Устрани ошибки, проведи оптимизацию. Ответ обязательно должен быть в формате json: {code:(новый код), updates:(массив изменений)[{code:(часть кода, которую ты решил изменить), description:(причина изменения)}]} !.")
+	if comment {
+		format.WriteString("Так же закоментируй код. Язык должен быть: %s")
+	} else {
+		format.WriteString("Не добавляй в код новых комментариев, оставь уже имеющиеся")
+	}
+
+	p := fmt.Sprintf(string(format.String()), language, content, commentsLanguage)
 
 	var res *AIFormatCodeRequest
 
@@ -32,7 +40,7 @@ func FormatCode(content, language, model, token string, ctx []*entity.File) (str
 	}
 
 	if err := api.GetAnswer(token, model, dialog, &res); err != nil {
-		return "", nil, nil
+		return "", nil, err
 	}
 
 	return res.Code, res.Updates, nil

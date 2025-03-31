@@ -27,12 +27,12 @@ type message struct {
 
 func GetAnswer(token string, model string, dialog []*entity.Message, target interface{}) error {
 	rb := struct {
-		Model       string        `json:"model"`
-		Messages    []interface{} `json:"messages"`
-		Temperature float64       `json:"temperature"`
+		Model       string     `json:"model"`
+		Messages    []*message `json:"messages"`
+		Temperature float64    `json:"temperature"`
 	}{
 		Model:       model,
-		Temperature: 0.1,
+		Temperature: 0.3,
 	}
 
 	for _, item := range dialog {
@@ -41,9 +41,9 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 			role = "user"
 		}
 
-		rb.Messages = append(rb.Messages, map[string]string{
-			"role":    role,
-			"content": item.Text,
+		rb.Messages = append(rb.Messages, &message{
+			Role:    role,
+			Content: item.Text,
 		})
 	}
 
@@ -67,17 +67,17 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err = io.ReadAll(resp.Body)
+	resBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("error read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error in response: %v %s", resp.StatusCode, bodyBytes)
+		return fmt.Errorf("error in response: %v %s", resp.StatusCode, resBodyBytes)
 	}
 
 	tempTarget := &response{}
-	err = json.Unmarshal(bodyBytes, tempTarget)
+	err = json.Unmarshal(resBodyBytes, tempTarget)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
