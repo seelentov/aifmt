@@ -72,7 +72,7 @@ var FmtCmd = &cobra.Command{
 				}
 
 				for _, upd := range upds {
-					fmt.Printf("%s\n%s\n\n", upd.Code, upd.Description)
+					fmt.Printf("```%s\n%s\n```\n%s\n\n", language, upd.Code, upd.Description)
 				}
 
 				if err := os.WriteFile(file, []byte(u), 0644); err != nil {
