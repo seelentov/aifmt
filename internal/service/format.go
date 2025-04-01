@@ -15,7 +15,7 @@ type AIFormatCodeRequest struct {
 
 func FormatCode(content, language, model, token string, comment bool, commentsLanguage string, ctx []*entity.File) (string, []*entity.Update, error) {
 	format := strings.Builder{}
-	format.WriteString("Исправь этот код: ```%s\n%s\n```. Устрани ошибки, проведи оптимизацию. Ответ обязательно должен быть в формате json: {code:(новый код), updates:(массив изменений)[{code:(часть кода, которую ты решил изменить), description:(причина изменения)}]} !.")
+	format.WriteString("Исправь этот код: ```%s\n%s\n```. Устрани ошибки, проведи оптимизацию. В твоем ответе обязательно должен быть только json объект, без текста до или после в следующем формате: {code:(новый код), updates:(массив изменений)[{code:(часть кода, которую ты решил изменить), description:(причина изменения)}]}!.")
 	if comment {
 		format.WriteString("Так же закоментируй код. Язык должен быть: %s")
 	} else {

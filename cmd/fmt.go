@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/seelentov/aifmt/internal/entity"
@@ -13,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+var wg sync.WaitGroup
 
 var FmtCmd = &cobra.Command{
 	Use:   "fmt [флаги] [файлы...]",
@@ -44,11 +47,7 @@ var FmtCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		cfgModel := viper.GetString("model")
-		model := cfgModel
-		if model == "" {
-			model, _ = cmd.Flags().GetString("model")
-		}
+		model, _ := cmd.Flags().GetString("model")
 
 		withCtx, _ := cmd.Flags().GetBool("with-context")
 		comments, _ := cmd.Flags().GetBool("comments")
@@ -106,123 +105,134 @@ var FmtCmd = &cobra.Command{
 			}
 
 			for _, file := range files {
-				fmt.Printf("Обработка %s (Язык: %s, Модель: %s, Контекст: %v)...\n",
-					file, language, model, withCtx)
+				wg.Add(1)
+				go func(file string) {
+					fmt.Printf("Обработка %s (Язык: %s, Модель: %s, Контекст: %v)...\n",
+						file, language, model, withCtx)
 
-				content, err := os.ReadFile(file)
-				if err != nil {
-					fmt.Printf("Ошибка чтения файла %s: %v\n", file, err)
-					if !skip {
-						fmt.Println("Попытка повторного чтения файла...")
-						if err := retryOperation(maxRetries, func() error {
-							content, err = os.ReadFile(file)
-							return err
-						}); err != nil {
-							fmt.Printf("Не удалось прочитать файл %s после %d попыток: %v\n", file, maxRetries, err)
-							continue
-						}
-					} else {
-						continue
-					}
-				}
-
-				var u string
-				var upds []*entity.Update
-				var formatErr error
-
-				// Функция для форматирования кода
-				formatFunc := func() error {
-					u, upds, formatErr = service.FormatCode(string(content), language, model, token, comments, commentsLanguage, ctx)
-					return formatErr
-				}
-
-				if err := formatFunc(); err != nil {
-					fmt.Printf("Ошибка при форматировании %s: %v\n", file, err)
-					if !skip {
-						fmt.Println("Попытка повторного форматирования...")
-						if err := retryOperation(maxRetries, formatFunc); err != nil {
-							fmt.Printf("Не удалось отформатировать файл %s после %d попыток: %v\n", file, maxRetries, err)
-							continue
-						}
-					} else {
-						continue
-					}
-				}
-
-				if u == "" {
-					fmt.Printf("Ошибка: ответ ИИ пуст.\n")
-					if !skip {
-						fmt.Println("Попытка повторного форматирования из-за пустого ответа...")
-						retryCount := 0
-						for u == "" && retryCount < maxRetries {
-							retryCount++
-							if err := formatFunc(); err != nil {
-								fmt.Printf("Попытка %d: ошибка форматирования: %v\n", retryCount, err)
-								continue
+					content, err := os.ReadFile(file)
+					if err != nil {
+						fmt.Printf("Ошибка чтения файла %s: %v\n", file, err)
+						if !skip {
+							fmt.Println("Попытка повторного чтения файла...")
+							if err := retryOperation(maxRetries, func() error {
+								content, err = os.ReadFile(file)
+								return err
+							}); err != nil {
+								fmt.Printf("Не удалось прочитать файл %s после %d попыток: %v\n", file, maxRetries, err)
+								return
 							}
-							if u != "" {
-								break
+						} else {
+							return
+						}
+					}
+
+					var u string
+					var upds []*entity.Update
+					var formatErr error
+
+					// Функция для форматирования кода
+					formatFunc := func() error {
+						u, upds, formatErr = service.FormatCode(string(content), language, model, token, comments, commentsLanguage, ctx)
+						return formatErr
+					}
+
+					if err := formatFunc(); err != nil {
+						fmt.Printf("Ошибка при форматировании %s: %v\n", file, err)
+						if !skip {
+							fmt.Println("Попытка повторного форматирования...")
+							if err := retryOperation(maxRetries, formatFunc); err != nil {
+								fmt.Printf("Не удалось отформатировать файл %s после %d попыток: %v\n", file, maxRetries, err)
+								return
 							}
-							fmt.Printf("Попытка %d: ответ ИИ все еще пуст\n", retryCount)
-							time.Sleep(time.Second * time.Duration(retryCount)) // Увеличиваем задержку между попытками
+						} else {
+							return
 						}
-						if u == "" {
-							fmt.Printf("Не удалось получить непустой ответ для файла %s после %d попыток\n", file, maxRetries)
-							continue
-						}
-					} else {
-						continue
 					}
-				}
 
-				for i := range upds {
-					upds[i].Path = file
-				}
-
-				// Выводим предложенные изменения
-				for _, upd := range upds {
-					fmt.Printf("%s:\n```%s\n%s\n```\n%s\n\n", file, language, upd.Code, upd.Description)
-				}
-
-				if report {
-					allUpds = append(allUpds, upds...)
-				}
-
-				// Записываем изменения в файл
-				if err := os.WriteFile(file, []byte(u), 0644); err != nil {
-					fmt.Printf("Ошибка записи в %s: %v\n", file, err)
-					if !skip {
-						fmt.Println("Попытка повторной записи файла...")
-						if err := retryOperation(maxRetries, func() error {
-							return os.WriteFile(file, []byte(u), 0644)
-						}); err != nil {
-							fmt.Printf("Не удалось записать файл %s после %d попыток: %v\n", file, maxRetries, err)
-							continue
+					if u == "" {
+						fmt.Printf("Ошибка: ответ ИИ пуст.\n")
+						if !skip {
+							fmt.Println("Попытка повторного форматирования из-за пустого ответа...")
+							retryCount := 0
+							for u == "" && retryCount < maxRetries {
+								retryCount++
+								if err := formatFunc(); err != nil {
+									fmt.Printf("Попытка %d: ошибка форматирования: %v\n", retryCount, err)
+									continue
+								}
+								if u != "" {
+									break
+								}
+								fmt.Printf("Попытка %d: ответ ИИ все еще пуст\n", retryCount)
+								time.Sleep(time.Second * time.Duration(retryCount)) // Увеличиваем задержку между попытками
+							}
+							if u == "" {
+								fmt.Printf("Не удалось получить непустой ответ для файла %s после %d попыток\n", file, maxRetries)
+								return
+							}
 						}
-					} else {
-						continue
 					}
-				}
 
-				fmt.Printf("Файл %s успешно обновлен\n", file)
+					for i := range upds {
+						upds[i].Path = file
+					}
+
+					// Выводим предложенные изменения
+					for _, upd := range upds {
+						fmt.Printf("%s:\n```%s\n%s\n```\n%s\n\n", file, language, upd.Code, upd.Description)
+					}
+
+					if report {
+						allUpds = append(allUpds, upds...)
+					}
+
+					// Записываем изменения в файл
+					if err := os.WriteFile(file, []byte(u), 0644); err != nil {
+						fmt.Printf("Ошибка записи в %s: %v\n", file, err)
+						if !skip {
+							fmt.Println("Попытка повторной записи файла...")
+							if err := retryOperation(maxRetries, func() error {
+								return os.WriteFile(file, []byte(u), 0644)
+							}); err != nil {
+								fmt.Printf("Не удалось записать файл %s после %d попыток: %v\n", file, maxRetries, err)
+								return
+							}
+						}
+					}
+
+					fmt.Printf("Файл %s успешно обновлен\n", file)
+
+					if report {
+						writetoReport(allUpds, repname)
+					}
+
+					wg.Done()
+				}(file)
 			}
 		}
 
-		if report {
-			rep, err := json.Marshal(allUpds)
-			if err != nil {
-				fmt.Printf("Ошибка при приведении изменений в строку JSON: %s\n", err)
-				return
-			}
-
-			if err := os.WriteFile(repname, rep, 0644); err != nil {
-				fmt.Printf("Ошибка записи в %s: %v\n", repname, err)
-				return
-			}
-
-			fmt.Printf("Отчет о форматировании записан в %s\n", repname)
-		}
+		wg.Wait()
 	},
+}
+
+var wtrMutex sync.Mutex
+
+func writetoReport(upds []*entity.Update, repname string) {
+	wtrMutex.Lock()
+	rep, err := json.Marshal(upds)
+	if err != nil {
+		fmt.Printf("Ошибка при приведении изменений в строку JSON: %s\n", err)
+		return
+	}
+
+	if err := os.WriteFile(repname, rep, 0644); err != nil {
+		fmt.Printf("Ошибка записи в %s: %v\n", repname, err)
+		return
+	}
+
+	fmt.Printf("Отчет о форматировании записан в %s\n", repname)
+	wtrMutex.Unlock()
 }
 
 // retryOperation выполняет операцию с повторными попытками при ошибках

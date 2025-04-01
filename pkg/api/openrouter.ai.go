@@ -25,6 +25,7 @@ type message struct {
 	Content string `json:"content"`
 }
 
+// GetAnswer отправляет запрос к API OpenRouter и возвращает ответ
 func GetAnswer(token string, model string, dialog []*entity.Message, target interface{}) error {
 	rb := struct {
 		Model       string     `json:"model"`
@@ -35,6 +36,7 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 		Temperature: 0.3,
 	}
 
+	// Преобразуем диалог в формат, понятный API
 	for _, item := range dialog {
 		role := "assistant"
 		if item.IsUser {
@@ -49,12 +51,12 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 
 	bodyBytes, err := json.Marshal(rb)
 	if err != nil {
-		return fmt.Errorf("error marshal request body: %w", err)
+		return fmt.Errorf("ошибка маршалинга тела запроса: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("error create request: %w", err)
+		return fmt.Errorf("ошибка создания запроса: %w", err)
 	}
 
 	req.Header.Add("Content-Type", "application/json;charset=utf-8")
@@ -63,27 +65,28 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error do request: %w", err)
+		return fmt.Errorf("ошибка выполнения запроса: %w", err)
 	}
 	defer resp.Body.Close()
 
 	resBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("error read response: %w", err)
+		return fmt.Errorf("ошибка чтения ответа: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error in response: %v %s", resp.StatusCode, resBodyBytes)
+		return fmt.Errorf("ошибка в ответе: %v %s", resp.StatusCode, resBodyBytes)
 	}
 
 	tempTarget := &response{}
 	err = json.Unmarshal(resBodyBytes, tempTarget)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal response: %w", err)
+		return fmt.Errorf("ошибка анмаршалинга ответа: %w", err)
 	}
 
 	msg := tempTarget.Choices[len(tempTarget.Choices)-1].Message.Content
 
+	// Обработка ответа в зависимости от типа целевого объекта
 	if reflect.TypeOf(target).String() == "*string" {
 		reflect.ValueOf(target).Elem().Set(reflect.ValueOf(msg))
 		return nil
@@ -94,7 +97,7 @@ func GetAnswer(token string, model string, dialog []*entity.Message, target inte
 
 	err = json.Unmarshal([]byte(msg), &target)
 	if err != nil {
-		return fmt.Errorf("error unmarshal: %w", err)
+		return fmt.Errorf("ошибка анмаршалинга: %w: %s", err, msg[0:20]+"...")
 	}
 
 	return nil

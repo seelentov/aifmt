@@ -33,7 +33,7 @@ var SetCmd = &cobra.Command{
 	},
 }
 
-// initConfig - инициализация конфигурации
+// InitConfig - инициализация конфигурации
 func InitConfig() {
 	// Получение домашней директории пользователя
 	home, err := os.UserHomeDir()
@@ -69,6 +69,7 @@ func InitConfig() {
 			viper.Set("comments_language", "Русский")
 			viper.Set("api_key", "")
 			viper.Set("max_retry", 5)
+			viper.Set("channels", 10)
 
 			// Запись конфигурации в файл
 			if err := viper.SafeWriteConfigAs(configPath); err != nil {
